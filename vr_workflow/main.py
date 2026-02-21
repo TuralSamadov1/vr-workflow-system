@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
+from vr_workflow.database import Base, engine, SessionLocal
 from sqlalchemy import Column, Integer, String, Boolean, DateTime  
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -16,7 +17,7 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 
-session = Session()
+session = SessionLocal()
 
 
 # ---------------- MODELLƏR ---------------- #
