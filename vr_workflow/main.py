@@ -73,10 +73,6 @@ Base.metadata.create_all(engine)
 
 # ---------------- COMMANDS ---------------- #
 
-@dp.message(Command("start"))
-async def start(message: types.Message):
-    await message.answer("Professional Workflow System hazırdır 🚀")
-
 
 @dp.message(Command("create_task"))
 async def create_task(message: types.Message):
