@@ -1,0 +1,7 @@
+aiogram
+sqlalchemy
+apscheduler
+fastapi
+uvicorn
+python-jose
+passlib[bcrypt]

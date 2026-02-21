@@ -8,7 +8,8 @@ class Task(Base):
 
     id = Column(Integer, primary_key=True)
     title = Column(String)
-    status = Column(String, default="active")  # active / completed
+    status = Column(String, default="active")
+    team_id = Column(Integer)  # YENİ
 
 
 class Stage(Base):
@@ -48,7 +49,46 @@ class User(Base):
     telegram_id = Column(String, unique=True)
     name = Column(String)
     role = Column(String, default="worker")  # admin / worker
+    password = Column(String)
 
-Base.metadata.create_all(engine)
+# ---------------- TEMPLATE MODELLƏR ---------------- #
+
+class WorkflowTemplate(Base):
+    __tablename__ = "workflow_templates"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True)
 
 
+class WorkflowTemplateStage(Base):
+    __tablename__ = "workflow_template_stages"
+
+    id = Column(Integer, primary_key=True)
+    template_id = Column(Integer)
+    name = Column(String)
+    order = Column(Integer)
+
+
+class WorkflowTemplateChecklist(Base):
+    __tablename__ = "workflow_template_checklists"
+
+    id = Column(Integer, primary_key=True)
+    template_stage_id = Column(Integer)
+    text = Column(String)
+
+# ---------------- TEAM MODELLƏR ---------------- #
+
+class Team(Base):
+    __tablename__ = "teams"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True)
+
+
+class TeamMember(Base):
+    __tablename__ = "team_members"
+
+    id = Column(Integer, primary_key=True)
+    team_id = Column(Integer)
+    user_id = Column(Integer)  # User model id
+    role = Column(String)  # team_lead / worker

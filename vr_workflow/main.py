@@ -7,7 +7,14 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from vr_workflow.database import Base, engine, SessionLocal
 from vr_workflow.models import Task, Stage, ChecklistItem, UserStats, User
+from vr_workflow.services.task_service import create_reels_task
+from vr_workflow.services.workflow_service import toggle_checklist_item
+from vr_workflow.services.performance_service import calculate_user_score, generate_leaderboard
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from vr_workflow.services.template_service import (
+    create_reels_template,
+    create_task_from_template
+)
 
 BOT_TOKEN = "8446148700:AAFpzUpbKoAAeKN9ureWY8YHkY9yctUbdkw"
 ADMIN_ID = 889375033  # öz ID-ni yaz
@@ -19,6 +26,7 @@ dp = Dispatcher()
 
 session = SessionLocal()
 
+Base.metadata.create_all(engine)
 
 # ---------------- COMMANDS ---------------- #
 
@@ -26,47 +34,14 @@ session = SessionLocal()
 @dp.message(Command("create_task"))
 async def create_task(message: types.Message):
 
-    # TASK
-    task = Task(title="Reels Çəkilişi")
-    session.add(task)
-    session.commit()
-
-    # STAGE 1 – ÇƏKİLİŞ
-    stage1 = Stage(
-        task_id=task.id,
-        name="Çəkiliş",
-        assigned_user=str(message.from_user.id),
-        status="active",
-        started_at=datetime.datetime.now(),
-        deadline=datetime.datetime.now() + datetime.timedelta(minutes=3)
+    stage_id = create_task_from_template(
+        session,
+        "Reels Production",
+        message.from_user.id,
+        MONTAGE_USER_ID
     )
-    session.add(stage1)
-    session.commit()
 
-    # STAGE 2 – MONTAJ
-    stage2 = Stage(
-        task_id=task.id,
-        name="Montaj",
-        assigned_user=str(MONTAGE_USER_ID),
-        status="pending",
-        deadline=datetime.datetime.now() + datetime.timedelta(minutes=5)
-    )
-    session.add(stage2)
-    session.commit()
-
-    # CHECKLIST – ÇƏKİLİŞ
-    items = [
-        "Ssenari hazırdır",
-        "Məkan hazırdır",
-        "Çəkiliş edildi"
-    ]
-
-    for text in items:
-        session.add(ChecklistItem(stage_id=stage1.id, text=text))
-
-    session.commit()
-
-    await send_stage_view(message.chat.id, stage1.id)
+    await send_stage_view(message.chat.id, stage_id)
 
 
 # ---------------- UI ---------------- #
@@ -100,59 +75,30 @@ async def send_stage_view(chat_id, stage_id):
 async def handle_toggle(callback: types.CallbackQuery):
 
     item_id = int(callback.data.split("_")[1])
-    item = session.query(ChecklistItem).filter_by(id=item_id).first()
 
-    item.completed = not item.completed
-    session.commit()
+    result = toggle_checklist_item(session, item_id)
 
-    stage = session.query(Stage).filter_by(id=item.stage_id).first()
+    if result and result.get("stage_completed"):
 
-    # STAGE TAMAMDIR?
-    items = session.query(ChecklistItem).filter_by(stage_id=stage.id).all()
-
-    if all(i.completed for i in items):
-
-        stage.status = "completed"
-        stage.completed_at = datetime.datetime.now()
-        session.commit()
-
-        print("STAGE TAMAMLANDI:", stage.name)
+        stage = result["stage_completed"]
 
         await bot.send_message(
             int(stage.assigned_user),
             f"✅ Sənin '{stage.name}' mərhələn tamamlandı"
         )
 
-        # NÖVBƏTİ STAGE TAP
-        next_stage = session.query(Stage).filter(
-            Stage.task_id == stage.task_id,
-            Stage.status == "pending"
-        ).first()
+        if result.get("next_stage"):
 
-        if next_stage:
-            next_stage.status = "active"
-            session.commit()
-
-            # Montaj checklist əlavə edirik
-            if next_stage.name == "Montaj":
-                montage_items = [
-                    "Montaj başladı",
-                    "Montaj bitdi"
-                ]
-                for text in montage_items:
-                    session.add(ChecklistItem(stage_id=next_stage.id, text=text))
-                session.commit()
+            next_stage = result["next_stage"]
 
             await bot.send_message(
                 int(next_stage.assigned_user),
                 f"🎬 Yeni mərhələ başladı: {next_stage.name}"
             )
 
-        else:
-            # BÜTÜN STAGE-LƏR TAMAMDIR
-            task = session.query(Task).filter_by(id=stage.task_id).first()
-            task.status = "completed"
-            session.commit()
+        elif result.get("task_completed"):
+
+            task = result["task"]
 
             await bot.send_message(
                 ADMIN_ID,
@@ -160,6 +106,11 @@ async def handle_toggle(callback: types.CallbackQuery):
             )
 
     await callback.message.delete()
+
+    stage = session.query(Stage).filter_by(
+        id=session.query(ChecklistItem).filter_by(id=item_id).first().stage_id
+    ).first()
+
     await send_stage_view(callback.message.chat.id, stage.id)
 
 @dp.message(Command("my_tasks"))
@@ -180,43 +131,20 @@ async def my_tasks(message: types.Message):
 @dp.message(Command("profile"))
 async def profile(message: types.Message):
 
-    user_id = str(message.from_user.id)
+    data = calculate_user_score(session, str(message.from_user.id))
 
-    stages = session.query(Stage).filter(
-        Stage.assigned_user == user_id,
-        Stage.status == "completed"
-    ).all()
-
-    if not stages:
+    if data["total"] == 0:
         await message.answer("Hələ tamamlanan mərhələ yoxdur.")
         return
 
-    total = len(stages)
-    late_count = 0
-    total_time = 0
-
-    for stage in stages:
-
-        if stage.started_at and stage.completed_at:
-            duration = (stage.completed_at - stage.started_at).total_seconds()
-            total_time += duration
-
-        if stage.deadline and stage.completed_at:
-            if stage.completed_at > stage.deadline:
-                late_count += 1
-
-    avg_time = total_time / total if total > 0 else 0
-    avg_minutes = round(avg_time / 60, 2)
-    score = total * 10 - late_count * 3
-
     text = f"""
-    👤 PROFİL
+👤 PROFİL
 
-    ✅ Tamamlanan mərhələlər: {total}
-    ⚠️ Gecikən mərhələlər: {late_count}
-    ⏱ Orta icra müddəti: {avg_minutes} dəqiqə
-    🏆 Performance balı: {score}
-    """
+✅ Tamamlanan mərhələlər: {data["total"]}
+⚠️ Gecikən mərhələlər: {data["late_count"]}
+⏱ Orta icra müddəti: {data["avg_minutes"]} dəqiqə
+🏆 Performance balı: {data["score"]}
+"""
 
     await message.answer(text)
 
@@ -289,29 +217,7 @@ async def start(message: types.Message):
 @dp.message(Command("ranking"))
 async def ranking(message: types.Message):
 
-    users = session.query(User).all()
-    leaderboard = []
-
-    for user in users:
-
-        stages = session.query(Stage).filter(
-            Stage.assigned_user == user.telegram_id,
-            Stage.status == "completed"
-        ).all()
-
-        total = len(stages)
-        late_count = 0
-
-        for stage in stages:
-            if stage.deadline and stage.completed_at:
-                if stage.completed_at > stage.deadline:
-                    late_count += 1
-
-        score = total * 10 - late_count * 3
-
-        leaderboard.append((user.name, score))
-
-    leaderboard.sort(key=lambda x: x[1], reverse=True)
+    leaderboard = generate_leaderboard(session)
 
     text = "🏆 RANKING\n\n"
 
@@ -325,6 +231,7 @@ async def ranking(message: types.Message):
 async def main():
     print("Workflow System başladı...")
 
+    create_reels_template(session)
     scheduler = AsyncIOScheduler()
     scheduler.add_job(check_stage_deadlines, "interval", seconds=30)
     scheduler.start()
