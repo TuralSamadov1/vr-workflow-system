@@ -5,8 +5,7 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy import Column, Integer, String, Boolean, DateTime  
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 BOT_TOKEN = "8446148700:AAFpzUpbKoAAeKN9ureWY8YHkY9yctUbdkw"
@@ -16,9 +15,7 @@ MONTAGE_USER_ID = 889375033  # test üçün eyni qoya bilərsən
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-Base = declarative_base()
-engine = create_engine("sqlite:///tasks.db")
-Session = sessionmaker(bind=engine)
+
 session = Session()
 
 
