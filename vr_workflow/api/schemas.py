@@ -2,17 +2,14 @@ from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 
-
 class RegisterSchema(BaseModel):
     name: str
     telegram_id: str
     password: str
 
-
 class LoginSchema(BaseModel):
     telegram_id: str
     password: str
-
 
 class TaskSchema(BaseModel):
     id: int
@@ -21,8 +18,7 @@ class TaskSchema(BaseModel):
     team_id: Optional[int]
 
     class Config:
-        from_attributes = True
-
+        orm_mode = True
 
 class StageSchema(BaseModel):
     id: int
@@ -34,8 +30,7 @@ class StageSchema(BaseModel):
     completed_at: Optional[datetime]
 
     class Config:
-        from_attributes = True
-
+        orm_mode = True
 
 class AnalyticsSchema(BaseModel):
     total_tasks: int

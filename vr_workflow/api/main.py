@@ -4,12 +4,17 @@ from vr_workflow.models import Task, TeamMember, User, Stage, Team
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from vr_workflow.security import hash_password, verify_password, create_access_token, SECRET_KEY, ALGORITHM
+from typing import List
 from vr_workflow.api.schemas import (
     RegisterSchema,
     LoginSchema,
-    AnalyticsSchema
+    AnalyticsSchema,
+    TaskSchema,
+    StageSchema
 )
 from pydantic import BaseModel
+
+
 
 app = FastAPI()
 
@@ -41,7 +46,7 @@ def get_current_user(
 def root():
     return {"message": "Workflow API işləyir 🚀"}
 
-@app.get("/tasks")
+@app.get("/tasks", response_model=List[TaskSchema])
 def list_tasks(current_user: dict = Depends(get_current_user)):
 
     session = SessionLocal()
@@ -131,7 +136,7 @@ def admin_area(current_user: dict = Depends(get_current_user)):
 
     return {"message": "Admin panel access granted"}
 
-@app.get("/my-stages")
+@app.get("/my-stages", response_model=List[StageSchema])
 def my_stages(current_user: dict = Depends(get_current_user)):
 
     session = SessionLocal()
