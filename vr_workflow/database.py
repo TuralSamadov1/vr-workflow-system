@@ -15,3 +15,9 @@ SessionLocal = sessionmaker(
 )
 
 Base = declarative_base()
+
+
+def init_db():
+    import vr_workflow.models  # noqa: F401
+
+    Base.metadata.create_all(bind=engine)
