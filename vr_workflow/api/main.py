@@ -1,5 +1,4 @@
 from fastapi import FastAPI, HTTPException, Depends
-from vr_workflow.database import SessionLocal, init_db
 from vr_workflow.models import Task, TeamMember, User, Stage, Team
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
@@ -54,85 +53,78 @@ def root():
 
 @app.get("/tasks", response_model=List[TaskSchema])
 def list_tasks(current_user: dict = Depends(get_current_user)):
+    with session_scope() as session:
+        if current_user["role"] == "admin":
+            tasks = session.query(Task).all()
 
-    session = SessionLocal()
+        else:
+            user = session.query(User).filter_by(
+                telegram_id=current_user["telegram_id"]
+            ).first()
 
-    if current_user["role"] == "admin":
-        tasks = session.query(Task).all()
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
 
-    else:
-        user = session.query(User).filter_by(
-            telegram_id=current_user["telegram_id"]
-        ).first()
+            memberships = session.query(TeamMember).filter_by(
+                user_id=user.id
+            ).all()
 
-        memberships = session.query(TeamMember).filter_by(
-            user_id=user.id
-        ).all()
+            team_ids = [m.team_id for m in memberships]
 
-        team_ids = [m.team_id for m in memberships]
+            tasks = session.query(Task).filter(
+                Task.team_id.in_(team_ids)
+            ).all()
 
-        tasks = session.query(Task).filter(
-            Task.team_id.in_(team_ids)
-        ).all()
+        result = []
 
-    result = []
+        for task in tasks:
+            result.append({
+                "id": task.id,
+                "title": task.title,
+                "status": task.status,
+                "team_id": task.team_id
+            })
 
-    for task in tasks:
-        result.append({
-            "id": task.id,
-            "title": task.title,
-            "status": task.status,
-            "team_id": task.team_id
-        })
-
-    session.close()
-    return result
+        return result
 
 @app.post("/register")
 def register(data: RegisterSchema):
+    with session_scope() as session:
+        existing = session.query(User).filter_by(
+            telegram_id=data.telegram_id
+        ).first()
 
-    session = SessionLocal()
+        if existing:
+            raise HTTPException(status_code=400, detail="User already exists")
 
-    existing = session.query(User).filter_by(
-        telegram_id=data.telegram_id
-    ).first()
+        user = User(
+            name=data.name,
+            telegram_id=data.telegram_id,
+            password=hash_password(data.password),
+            role="worker"
+        )
 
-    if existing:
-        raise HTTPException(status_code=400, detail="User already exists")
-
-    user = User(
-        name=data.name,
-        telegram_id=data.telegram_id,
-        password=hash_password(data.password),
-        role="worker"
-    )
-
-    session.add(user)
-    session.commit()
-    session.close()
+        session.add(user)
+        session.commit()
 
     return {"message": "User created"}
 
 @app.post("/login")
 def login(data: LoginSchema):
+    with session_scope() as session:
+        user = session.query(User).filter_by(
+            telegram_id=data.telegram_id
+        ).first()
 
-    session = SessionLocal()
+        if not user or not verify_password(data.password, user.password):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    user = session.query(User).filter_by(
-        telegram_id=data.telegram_id
-    ).first()
+        token = create_access_token({
+            "sub": user.telegram_id,
+            "role": user.role
+        })
 
-    if not user or not verify_password(data.password, user.password):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    token = create_access_token({
-        "sub": user.telegram_id,
-        "role": user.role
-    })
-
-    session.close()
-
-    return {"access_token": token}
+        return {"access_token": token}
 
 @app.get("/admin-only")
 def admin_area(current_user: dict = Depends(get_current_user)):
@@ -144,32 +136,27 @@ def admin_area(current_user: dict = Depends(get_current_user)):
 
 @app.get("/my-stages", response_model=List[StageSchema])
 def my_stages(current_user: dict = Depends(get_current_user)):
+    with session_scope() as session:
+        stages = session.query(Stage).filter(
+            Stage.assigned_user == current_user["telegram_id"]
+        ).all()
 
-    session = SessionLocal()
 
-    stages = session.query(Stage).filter(
-        Stage.assigned_user == current_user["telegram_id"]
-    ).all()
+        for stage in stages:
+            result.append({
+                "id": stage.id,
+                "task_id": stage.task_id,
+                "name": stage.name,
+                "order": stage.order,
+                "assigned_role": stage.assigned_role,
+                "status": stage.status,
+                "revision_count": stage.revision_count,
+                "deadline": stage.deadline,
+                "started_at": stage.started_at,
+                "completed_at": stage.completed_at
+            })
 
-    result = []
-
-    for stage in stages:
-        result.append({
-            "id": stage.id,
-            "task_id": stage.task_id,
-            "name": stage.name,
-            "order": stage.order,
-            "assigned_role": stage.assigned_role,
-            "status": stage.status,
-            "revision_count": stage.revision_count,
-            "deadline": stage.deadline,
-            "started_at": stage.started_at,
-            "completed_at": stage.completed_at
-        })
-
-    session.close()
-
-    return result
+        return result
 
 @app.get("/analytics", response_model=AnalyticsSchema)
 def analytics(current_user: dict = Depends(get_current_user)):
@@ -177,37 +164,34 @@ def analytics(current_user: dict = Depends(get_current_user)):
     if current_user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
 
-    session = SessionLocal()
+    with session_scope() as session:
+        total_tasks = session.query(Task).count()
+        active_tasks = session.query(Task).filter(
+            Task.status == "active"
+        ).count()
 
-    total_tasks = session.query(Task).count()
-    active_tasks = session.query(Task).filter(
-        Task.status == "active"
-    ).count()
+        completed_tasks = session.query(Task).filter(
+            Task.status == "completed"
+        ).count()
 
-    completed_tasks = session.query(Task).filter(
-        Task.status == "completed"
-    ).count()
+        total_stages = session.query(Stage).count()
 
-    total_stages = session.query(Stage).count()
+        overdue_stages = session.query(Stage).filter(
+            Stage.status == "overdue"
+        ).count()
 
-    overdue_stages = session.query(Stage).filter(
-        Stage.status == "overdue"
-    ).count()
+        completed_stages = session.query(Stage).filter(
+            Stage.status == "completed"
+        ).count()
 
-    completed_stages = session.query(Stage).filter(
-        Stage.status == "completed"
-    ).count()
-
-    session.close()
-
-    return {
-        "total_tasks": total_tasks,
-        "active_tasks": active_tasks,
-        "completed_tasks": completed_tasks,
-        "total_stages": total_stages,
-        "completed_stages": completed_stages,
-        "overdue_stages": overdue_stages
-    }
+        return {
+            "total_tasks": total_tasks,
+            "active_tasks": active_tasks,
+            "completed_tasks": completed_tasks,
+            "total_stages": total_stages,
+            "completed_stages": completed_stages,
+            "overdue_stages": overdue_stages
+        }
 
 class TeamCreateSchema(BaseModel):
     name: str
@@ -222,16 +206,14 @@ def create_team(
     if current_user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
 
-    session = SessionLocal()
+    with session_scope() as session:
+        existing = session.query(Team).filter_by(name=data.name).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="Team already exists")
 
-    existing = session.query(Team).filter_by(name=data.name).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Team already exists")
-
-    team = Team(name=data.name)
-    session.add(team)
-    session.commit()
-    session.close()
+        team = Team(name=data.name)
+        session.add(team)
+        session.commit()
 
     return {"message": "Team created"}
 
@@ -250,29 +232,27 @@ def add_user_to_team(
     if current_user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
 
-    session = SessionLocal()
+    with session_scope() as session:
+        user = session.query(User).filter_by(
+            telegram_id=data.telegram_id
+        ).first()
 
-    user = session.query(User).filter_by(
-        telegram_id=data.telegram_id
-    ).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        team = session.query(Team).filter_by(name=data.team_name).first()
 
-    team = session.query(Team).filter_by(name=data.team_name).first()
+        if not team:
+            raise HTTPException(status_code=404, detail="Team not found")
 
-    if not team:
-        raise HTTPException(status_code=404, detail="Team not found")
+        membership = TeamMember(
+            team_id=team.id,
+            user_id=user.id,
+            role=data.role
+        )
 
-    membership = TeamMember(
-        team_id=team.id,
-        user_id=user.id,
-        role=data.role
-    )
-
-    session.add(membership)
-    session.commit()
-    session.close()
+        session.add(membership)
+        session.commit()
 
     return {"message": "User added to team"}
 
@@ -289,15 +269,6 @@ def create_stage_revision(
     if current_user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
 
-    session = SessionLocal()
-
-    result = request_stage_revision(session, data.stage_id)
-
-    if not result:
-        session.close()
-        raise HTTPException(status_code=404, detail="Stage not found")
-
-    session.close()
 
     return {
         "message": "Revision requested",
