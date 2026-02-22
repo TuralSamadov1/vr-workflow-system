@@ -2,11 +2,10 @@ from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 
-from vr_workflow.database import SessionLocal
+from vr_workflow.database import SessionLocal, init_db
 from vr_workflow.models import Task
 
 app = FastAPI()
-
 
 def _get_templates():
     try:
@@ -29,11 +28,3 @@ def admin_panel(request: Request):
             "Jinja2 paketi quraşdırılmayıb. Bu komandanı işə salın: pip install jinja2",
             status_code=500
         )
-
-    session = SessionLocal()
-    tasks = session.query(Task).all()
-
-    return templates.TemplateResponse(
-        "admin.html",
-        {"request": request, "tasks": tasks}
-    )

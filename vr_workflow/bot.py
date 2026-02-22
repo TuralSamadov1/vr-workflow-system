@@ -3,7 +3,7 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from vr_workflow.database import SessionLocal, Base, engine
+
 from vr_workflow.models import Stage, ChecklistItem
 from vr_workflow.services.template_service import create_reels_template, create_task_from_template
 from vr_workflow.services.workflow_service import toggle_checklist_item
@@ -14,7 +14,7 @@ bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
 session = SessionLocal()
-Base.metadata.create_all(engine)
+init_db()
 
 
 # ---------------- UI FUNCTION ---------------- #
