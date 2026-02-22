@@ -7,12 +7,6 @@ from vr_workflow.models import Task
 
 app = FastAPI()
 
-
-@app.on_event("startup")
-def startup_event():
-    init_db()
-
-
 def _get_templates():
     try:
         return Jinja2Templates(directory="vr_workflow/templates")
@@ -34,14 +28,3 @@ def admin_panel(request: Request):
             "Jinja2 paketi quraşdırılmayıb. Bu komandanı işə salın: pip install jinja2",
             status_code=500
         )
-
-    session = SessionLocal()
-    try:
-        tasks = session.query(Task).all()
-
-        return templates.TemplateResponse(
-            "admin.html",
-            {"request": request, "tasks": tasks}
-        )
-    finally:
-        session.close()
