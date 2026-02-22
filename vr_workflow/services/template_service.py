@@ -29,7 +29,8 @@ def create_reels_template(session):
     stage1 = WorkflowTemplateStage(
         template_id=template.id,
         name="Çəkiliş",
-        order=1
+        order=1,
+        assigned_role="videographer"
     )
     session.add(stage1)
     session.commit()
@@ -52,7 +53,8 @@ def create_reels_template(session):
     stage2 = WorkflowTemplateStage(
         template_id=template.id,
         name="Montaj",
-        order=2
+        order=2,
+        assigned_role="editor"
     )
     session.add(stage2)
     session.commit()
@@ -77,7 +79,20 @@ def create_reels_template(session):
 
 # ---------------- TEMPLATE-DƏN TASK YARAT ---------------- #
 
-def create_task_from_template(session, template_name, creator_id, montage_user_id):
+def create_task_from_template(
+    session,
+    template_name,
+    creator_id,
+    montage_user_id,
+    role_assignments=None
+):
+
+    role_assignments = role_assignments or {}
+
+    # Backward compatible default mapping
+    role_assignments.setdefault("videographer", str(creator_id))
+    role_assignments.setdefault("editor", str(montage_user_id))
+    role_assignments.setdefault("coordinator", str(creator_id))
 
     template = session.query(WorkflowTemplate).filter_by(
         name=template_name
@@ -98,9 +113,10 @@ def create_task_from_template(session, template_name, creator_id, montage_user_i
 
     for index, t_stage in enumerate(template_stages):
 
-        assigned_user = (
-            str(creator_id) if index == 0 else str(montage_user_id)
-        )
+        assigned_user = role_assignments.get(t_stage.assigned_role)
+
+        if not assigned_user:
+            assigned_user = str(creator_id) if index == 0 else str(montage_user_id)
 
         status = "active" if index == 0 else "pending"
 
@@ -108,6 +124,8 @@ def create_task_from_template(session, template_name, creator_id, montage_user_i
             task_id=task.id,
             name=t_stage.name,
             assigned_user=assigned_user,
+            assigned_role=t_stage.assigned_role,
+            order=t_stage.order,
             status=status,
             started_at=datetime.now() if index == 0 else None,
             deadline=datetime.now() + timedelta(minutes=5)
