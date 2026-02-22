@@ -7,7 +7,12 @@ from vr_workflow.models import Task
 
 app = FastAPI()
 
-templates = Jinja2Templates(directory="vr_workflow/templates")
+
+def _get_templates():
+    try:
+        return Jinja2Templates(directory="vr_workflow/templates")
+    except AssertionError:
+        return None
 
 
 @app.get("/")
@@ -17,6 +22,14 @@ def root():
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin_panel(request: Request):
+    templates = _get_templates()
+
+    if templates is None:
+        return HTMLResponse(
+            "Jinja2 paketi quraşdırılmayıb. Bu komandanı işə salın: pip install jinja2",
+            status_code=500
+        )
+
     session = SessionLocal()
     tasks = session.query(Task).all()
 

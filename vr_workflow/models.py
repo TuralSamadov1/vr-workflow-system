@@ -22,7 +22,10 @@ class Stage(Base):
     task_id = Column(Integer, ForeignKey("tasks.id"))
     name = Column(String)
     assigned_user = Column(String)
+    assigned_role = Column(String)
     status = Column(String, default="pending")
+    order = Column(Integer, default=0)
+    revision_count = Column(Integer, default=0)
 
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
@@ -75,6 +78,7 @@ class WorkflowTemplateStage(Base):
     template_id = Column(Integer)
     name = Column(String)
     order = Column(Integer)
+    assigned_role = Column(String)
 
 
 class WorkflowTemplateChecklist(Base):
