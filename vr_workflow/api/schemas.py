@@ -24,7 +24,10 @@ class StageSchema(BaseModel):
     id: int
     task_id: int
     name: str
+    order: int
+    assigned_role: Optional[str]
     status: str
+    revision_count: int
     deadline: Optional[datetime]
     started_at: Optional[datetime]
     completed_at: Optional[datetime]
