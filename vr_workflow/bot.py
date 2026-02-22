@@ -3,7 +3,6 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
 from vr_workflow.models import Stage, ChecklistItem
 from vr_workflow.services.template_service import create_reels_template, create_task_from_template
 from vr_workflow.services.workflow_service import toggle_checklist_item
@@ -24,17 +23,6 @@ async def send_stage_view(chat_id, stage_id):
         if not stage:
             await bot.send_message(chat_id, "Mərhələ tapılmadı")
             return
-
-        items = list(stage.checklist_items)
-
-        text = f"📌 {stage.name} mərhələsi\n\n"
-
-        keyboard = []
-
-        for item in items:
-            status = "☑️" if item.completed else "⬜"
-            text += f"{status} {item.text}\n"
-
             keyboard.append([
                 InlineKeyboardButton(
                     text=f"{status} {item.text}",
@@ -65,10 +53,10 @@ async def create_task_handler(message: types.Message):
 
 @dp.callback_query()
 async def handle_toggle(callback: types.CallbackQuery):
+    if not callback.data or not callback.data.startswith("toggle_"):
+        await callback.answer("Yanlış callback məlumatı", show_alert=True)
+        return
 
-    item_id = int(callback.data.split("_")[1])
-
-        )
 
     await callback.message.delete()
     await send_stage_view(callback.message.chat.id, stage_id)
