@@ -6,6 +6,7 @@ DATABASE_URL = "sqlite:///tasks.db"
 
 engine = create_engine(
     DATABASE_URL,
+    connect_args={"check_same_thread": False},  # SQLite üçün vacibdir
     echo=False
 )
 
@@ -19,6 +20,18 @@ Base = declarative_base()
 
 
 def init_db():
-    import vr_workflow.models  # noqa: F401
-
+    import vr_workflow.models  # noqa
     Base.metadata.create_all(bind=engine)
+
+
+@contextmanager
+def session_scope():
+    session = SessionLocal()
+    try:
+        yield session
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()

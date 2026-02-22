@@ -13,6 +13,7 @@ from vr_workflow.api.schemas import (
 )
 from pydantic import BaseModel
 from vr_workflow.services.workflow_service import request_stage_revision
+from vr_workflow.database import init_db, session_scope
 
 
 
@@ -141,7 +142,7 @@ def my_stages(current_user: dict = Depends(get_current_user)):
             Stage.assigned_user == current_user["telegram_id"]
         ).all()
 
-
+        result = []
         for stage in stages:
             result.append({
                 "id": stage.id,
@@ -269,7 +270,7 @@ def create_stage_revision(
     if current_user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
 
-
+    result = []
     return {
         "message": "Revision requested",
         "stage_id": data.stage_id,

@@ -19,13 +19,10 @@ def _find_next_stage(session, stage):
 def toggle_checklist_item(session, item_id):
 
     item = session.query(ChecklistItem).filter_by(id=item_id).first()
-
     if not item:
         return None
 
-    # Toggle
     item.completed = not item.completed
-    session.commit()
 
     stage = session.query(Stage).filter_by(id=item.stage_id).first()
     items = session.query(ChecklistItem).filter_by(stage_id=stage.id).all()
@@ -35,37 +32,20 @@ def toggle_checklist_item(session, item_id):
 
         stage.status = "completed"
         stage.completed_at = datetime.now()
-        session.commit()
 
-        # Növbəti mərhələni tap
         next_stage = _find_next_stage(session, stage)
 
         if next_stage:
             next_stage.status = "active"
             next_stage.started_at = datetime.now()
-            session.commit()
-
-            return {
-                "stage_completed": stage,
-                "next_stage": next_stage,
-                "task_completed": False
-            }
+            return next_stage.id   # <-- SADƏ INT
 
         else:
             task = session.query(Task).filter_by(id=stage.task_id).first()
-            task.status = "completed"
-            session.commit()
+            task.status = "waiting_approval"
+            return stage.id       # <-- sonuncu stage qalır
 
-            return {
-                "stage_completed": stage,
-                "next_stage": None,
-                "task_completed": True,
-                "task": task
-            }
-
-    return {
-        "stage_completed": None
-    }
+    return stage.id               # <-- həmişə INT qaytarır
 
 
 def request_stage_revision(session, stage_id):
@@ -107,7 +87,7 @@ def request_stage_revision(session, stage_id):
     if task and task.status == "completed":
         task.status = "active"
 
-    session.commit()
+
 
     return {
         "stage": stage,
