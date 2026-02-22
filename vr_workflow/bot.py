@@ -1,14 +1,12 @@
 import asyncio
-import datetime
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
 from vr_workflow.database import SessionLocal, Base, engine
 from vr_workflow.models import Stage, ChecklistItem
 from vr_workflow.services.template_service import create_reels_template, create_task_from_template
+from vr_workflow.services.workflow_service import toggle_checklist_item
 
 BOT_TOKEN = "8446148700:AAFpzUpbKoAAeKN9ureWY8YHkY9yctUbdkw"
 
@@ -67,28 +65,19 @@ async def handle_toggle(callback: types.CallbackQuery):
     item_id = int(callback.data.split("_")[1])
 
     item = session.query(ChecklistItem).filter_by(id=item_id).first()
-    item.completed = not item.completed
-    session.commit()
+    if not item:
+        await callback.answer("Checklist tapılmadı", show_alert=True)
+        return
 
-    # STAGE-ID-ni götür
+    result = toggle_checklist_item(session, item_id)
     stage_id = item.stage_id
 
-    # STAGE-I DB-dən təmiz oxu
-    stage = session.query(Stage).filter_by(id=stage_id).first()
-
-    # Bütün checklist-i DB-dən yenidən oxu
-    checklist_items = session.query(ChecklistItem).filter_by(stage_id=stage_id).all()
-
-    all_completed = all(i.completed for i in checklist_items)
-
-    print("ALL COMPLETED:", all_completed)
-
-    if all_completed:
-        session.query(Stage).filter_by(id=stage_id).update({
-            "status": "completed",
-            "completed_at": datetime.datetime.now()
-        })
-        session.commit()
+    if result and result.get("next_stage"):
+        next_stage = result["next_stage"]
+        await bot.send_message(
+            callback.message.chat.id,
+            f"➡️ Növbəti mərhələ aktiv oldu: {next_stage.name}"
+        )
 
     await callback.message.delete()
     await send_stage_view(callback.message.chat.id, stage_id)

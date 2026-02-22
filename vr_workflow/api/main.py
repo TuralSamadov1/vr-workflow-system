@@ -13,6 +13,7 @@ from vr_workflow.api.schemas import (
     StageSchema
 )
 from pydantic import BaseModel
+from vr_workflow.services.workflow_service import request_stage_revision
 
 
 
@@ -152,7 +153,10 @@ def my_stages(current_user: dict = Depends(get_current_user)):
             "id": stage.id,
             "task_id": stage.task_id,
             "name": stage.name,
+            "order": stage.order,
+            "assigned_role": stage.assigned_role,
             "status": stage.status,
+            "revision_count": stage.revision_count,
             "deadline": stage.deadline,
             "started_at": stage.started_at,
             "completed_at": stage.completed_at
@@ -266,3 +270,32 @@ def add_user_to_team(
     session.close()
 
     return {"message": "User added to team"}
+
+
+class StageRevisionSchema(BaseModel):
+    stage_id: int
+
+
+@app.post("/stages/revision")
+def create_stage_revision(
+    data: StageRevisionSchema,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+
+    session = SessionLocal()
+
+    result = request_stage_revision(session, data.stage_id)
+
+    if not result:
+        session.close()
+        raise HTTPException(status_code=404, detail="Stage not found")
+
+    session.close()
+
+    return {
+        "message": "Revision requested",
+        "stage_id": data.stage_id,
+        "revision_count": result["revision_count"]
+    }
