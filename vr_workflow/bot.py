@@ -3,7 +3,7 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from vr_workflow.models import Stage, ChecklistItem, Task
+from vr_workflow.models import Stage, ChecklistItem, Task, User
 from vr_workflow.services.template_service import create_reels_template, create_task_from_template
 from vr_workflow.services.workflow_service import toggle_checklist_item
 from vr_workflow.database import init_db, session_scope
@@ -95,7 +95,27 @@ async def handle_toggle(callback: types.CallbackQuery):
     item_id = int(callback.data.split("_")[1])
 
     with session_scope() as session:
-        stage_id = toggle_checklist_item(session, item_id, user_id=callback.from_user.id)
+
+        user = session.query(User).filter_by(
+            telegram_id=str(callback.from_user.id)
+        ).first()
+
+        if not user:
+            user = User(
+                name=callback.from_user.full_name,
+                telegram_id=str(callback.from_user.id),
+                password="bot_user",
+                role="worker"
+            )
+            session.add(user)
+            session.flush()
+
+        stage_id = toggle_checklist_item(
+            session,
+            item_id,
+            user_id=callback.from_user.id,
+            user_role=user.role
+        )
 
     await callback.answer("Yeniləndi ✅")
 

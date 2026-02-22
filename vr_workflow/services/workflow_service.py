@@ -2,7 +2,7 @@ from datetime import datetime
 from sqlalchemy import or_, and_
 from vr_workflow.models import Stage, ChecklistItem, Task
 from vr_workflow.services.audit_service import AuditService
-
+from vr_workflow.services.permission_service import PermissionService, PermissionDenied
 
 def _find_next_stage(session, stage):
 
@@ -17,7 +17,7 @@ def _find_next_stage(session, stage):
     ).order_by(Stage.order.asc(), Stage.id.asc()).first()
 
 
-def toggle_checklist_item(session, item_id, user_id):
+def toggle_checklist_item(session, item_id, user_id, user_role):
 
     item = session.query(ChecklistItem).filter_by(id=item_id).first()
     if not item:
@@ -34,6 +34,11 @@ def toggle_checklist_item(session, item_id, user_id):
     )
 
     stage = session.query(Stage).filter_by(id=item.stage_id).first()
+    PermissionService.can_toggle_checklist(
+        user_role=user_role,
+        stage_assigned_user=stage.assigned_user,
+        current_user_telegram_id=str(user_id)
+    )
     items = session.query(ChecklistItem).filter_by(stage_id=stage.id).all()
 
     # Əgər hamısı tamamdırsa
