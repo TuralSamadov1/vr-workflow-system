@@ -2,7 +2,6 @@ from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 
-from vr_workflow.database import SessionLocal, init_db
 from vr_workflow.models import Task
 
 app = FastAPI()
@@ -22,9 +21,3 @@ def root():
 @app.get("/admin", response_class=HTMLResponse)
 def admin_panel(request: Request):
     templates = _get_templates()
-
-    if templates is None:
-        return HTMLResponse(
-            "Jinja2 paketi quraşdırılmayıb. Bu komandanı işə salın: pip install jinja2",
-            status_code=500
-        )
