@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VR Workflow Admin</title>
+</head>
+<body>
+
+<h1>📂 Task Siyahısı</h1>
+
+{% for task in tasks %}
+    <div style="border:1px solid black; padding:10px; margin:10px;">
+        <h3>{{ task.title }}</h3>
+        <p>Task ID: {{ task.id }}</p>
+
+        <h4>Stages:</h4>
+
+        {% for stage in task.stages %}
+            <div style="margin-left:20px; border:1px solid gray; padding:5px; margin-bottom:5px;">
+                <p>
+                    ➜ {{ stage.name }} 
+                    (Status: {{ stage.status }}) 
+                    | Assigned: {{ stage.assigned_user }}
+                </p>
+
+                <div style="margin-left:20px;">
+                    <strong>Checklist:</strong>
+
+                    {% for item in stage.checklist_items %}
+                        <p>
+                            {% if item.completed %}
+                                ☑️
+                            {% else %}
+                                ⬜
+                            {% endif %}
+                            {{ item.text }}
+                        </p>
+                    {% endfor %}
+
+                </div>
+            </div>
+        {% endfor %}
+
+    </div>
+{% endfor %}
+
+</body>
+</html>

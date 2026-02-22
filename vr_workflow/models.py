@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
 from vr_workflow.database import Base
+from sqlalchemy.orm import relationship
 
 # ---------------- MODELLƏR ---------------- #
 
@@ -9,30 +10,37 @@ class Task(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String)
     status = Column(String, default="active")
-    team_id = Column(Integer)  # YENİ
+    team_id = Column(Integer, ForeignKey("teams.id"))
+
+    stages = relationship("Stage", back_populates="task")
 
 
 class Stage(Base):
     __tablename__ = "stages"
 
     id = Column(Integer, primary_key=True)
-    task_id = Column(Integer)
+    task_id = Column(Integer, ForeignKey("tasks.id"))
     name = Column(String)
     assigned_user = Column(String)
-    status = Column(String, default="pending")  # pending / active / completed
+    status = Column(String, default="pending")
 
     started_at = Column(DateTime)
     completed_at = Column(DateTime)
     deadline = Column(DateTime)
+
+    task = relationship("Task", back_populates="stages")
+    checklist_items = relationship("ChecklistItem", back_populates="stage")
 
 
 class ChecklistItem(Base):
     __tablename__ = "checklist_items"
 
     id = Column(Integer, primary_key=True)
-    stage_id = Column(Integer)
+    stage_id = Column(Integer, ForeignKey("stages.id"))
     text = Column(String)
     completed = Column(Boolean, default=False)
+
+    stage = relationship("Stage", back_populates="checklist_items")
 
 class UserStats(Base):
     __tablename__ = "user_stats"
@@ -90,5 +98,5 @@ class TeamMember(Base):
 
     id = Column(Integer, primary_key=True)
     team_id = Column(Integer)
-    user_id = Column(Integer)  # User model id
+    user_id = Column(Integer, ForeignKey("users.id"))
     role = Column(String)  # team_lead / worker
