@@ -1,5 +1,4 @@
 from fastapi import FastAPI, HTTPException, Depends
-from vr_workflow.database import init_db, session_scope
 from vr_workflow.models import Task, TeamMember, User, Stage, Team
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
@@ -142,7 +141,6 @@ def my_stages(current_user: dict = Depends(get_current_user)):
             Stage.assigned_user == current_user["telegram_id"]
         ).all()
 
-        result = []
 
         for stage in stages:
             result.append({
@@ -271,11 +269,6 @@ def create_stage_revision(
     if current_user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
 
-    with session_scope() as session:
-        result = request_stage_revision(session, data.stage_id)
-
-        if not result:
-            raise HTTPException(status_code=404, detail="Stage not found")
 
     return {
         "message": "Revision requested",
