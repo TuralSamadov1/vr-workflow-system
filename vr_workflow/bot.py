@@ -95,7 +95,7 @@ async def handle_toggle(callback: types.CallbackQuery):
     item_id = int(callback.data.split("_")[1])
 
     with session_scope() as session:
-        stage_id = toggle_checklist_item(session, item_id)
+        stage_id = toggle_checklist_item(session, item_id, user_id=callback.from_user.id)
 
     await callback.answer("Yeniləndi ✅")
 

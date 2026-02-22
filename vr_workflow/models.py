@@ -104,3 +104,22 @@ class TeamMember(Base):
     team_id = Column(Integer)
     user_id = Column(Integer, ForeignKey("users.id"))
     role = Column(String)  # team_lead / worker
+
+# vr_workflow/models.py
+
+from datetime import datetime
+from sqlalchemy import DateTime
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, nullable=True)
+
+    entity_type = Column(String, nullable=False)  # task, stage, checklist
+    entity_id = Column(Integer, nullable=False)
+
+    action = Column(String, nullable=False)  # created, updated, approved, toggled
+
+    created_at = Column(DateTime, default=datetime.utcnow)

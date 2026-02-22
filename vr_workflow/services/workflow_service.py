@@ -1,6 +1,7 @@
 from datetime import datetime
 from sqlalchemy import or_, and_
 from vr_workflow.models import Stage, ChecklistItem, Task
+from vr_workflow.services.audit_service import AuditService
 
 
 def _find_next_stage(session, stage):
@@ -16,13 +17,21 @@ def _find_next_stage(session, stage):
     ).order_by(Stage.order.asc(), Stage.id.asc()).first()
 
 
-def toggle_checklist_item(session, item_id):
+def toggle_checklist_item(session, item_id, user_id):
 
     item = session.query(ChecklistItem).filter_by(id=item_id).first()
     if not item:
         return None
 
     item.completed = not item.completed
+
+    AuditService.log(
+        session=session,
+        user_id=user_id,
+        entity_type="checklist_item",
+        entity_id=item.id,
+        action="toggled"
+    )
 
     stage = session.query(Stage).filter_by(id=item.stage_id).first()
     items = session.query(ChecklistItem).filter_by(stage_id=stage.id).all()
@@ -31,6 +40,13 @@ def toggle_checklist_item(session, item_id):
     if all(i.completed for i in items):
 
         stage.status = "completed"
+        AuditService.log(
+            session=session,
+            user_id=user_id,
+            entity_type="stage",
+            entity_id=stage.id,
+            action="completed"
+        )
         stage.completed_at = datetime.now()
 
         next_stage = _find_next_stage(session, stage)
@@ -43,6 +59,13 @@ def toggle_checklist_item(session, item_id):
         else:
             task = session.query(Task).filter_by(id=stage.task_id).first()
             task.status = "waiting_approval"
+            AuditService.log(
+                session=session,
+                user_id=user_id,
+                entity_type="task",
+                entity_id=task.id,
+                action="waiting_approval"
+            )
             return stage.id       # <-- sonuncu stage qalır
 
     return stage.id               # <-- həmişə INT qaytarır
@@ -93,3 +116,4 @@ def request_stage_revision(session, stage_id):
         "stage": stage,
         "revision_count": stage.revision_count
     }
+
