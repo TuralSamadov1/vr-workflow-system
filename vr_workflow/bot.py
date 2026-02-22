@@ -3,7 +3,6 @@ import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from vr_workflow.database import init_db, session_scope
 from vr_workflow.models import Stage, ChecklistItem
 from vr_workflow.services.template_service import create_reels_template, create_task_from_template
 from vr_workflow.services.workflow_service import toggle_checklist_item
@@ -24,17 +23,6 @@ async def send_stage_view(chat_id, stage_id):
         if not stage:
             await bot.send_message(chat_id, "Mərhələ tapılmadı")
             return
-
-        items = list(stage.checklist_items)
-
-        text = f"📌 {stage.name} mərhələsi\n\n"
-
-        keyboard = []
-
-        for item in items:
-            status = "☑️" if item.completed else "⬜"
-            text += f"{status} {item.text}\n"
-
             keyboard.append([
                 InlineKeyboardButton(
                     text=f"{status} {item.text}",
@@ -69,36 +57,6 @@ async def handle_toggle(callback: types.CallbackQuery):
         await callback.answer("Yanlış callback məlumatı", show_alert=True)
         return
 
-    try:
-        item_id = int(callback.data.split("_", maxsplit=1)[1])
-    except (IndexError, ValueError):
-        await callback.answer("Yanlış checklist identifikatoru", show_alert=True)
-        return
-
-    next_stage_name = None
-    stage_id = None
-
-    with session_scope() as session:
-        item = session.query(ChecklistItem).filter_by(id=item_id).first()
-        if not item:
-            await callback.answer("Checklist tapılmadı", show_alert=True)
-            return
-
-        result = toggle_checklist_item(session, item_id)
-        stage_id = item.stage_id
-
-        if result and result.get("next_stage"):
-            next_stage_name = result["next_stage"].name
-
-    if next_stage_name:
-        await bot.send_message(
-            callback.message.chat.id,
-            f"➡️ Növbəti mərhələ aktiv oldu: {next_stage_name}"
-        )
-
-    if stage_id is None:
-        await callback.answer("Mərhələ tapılmadı", show_alert=True)
-        return
 
     await callback.message.delete()
     await send_stage_view(callback.message.chat.id, stage_id)

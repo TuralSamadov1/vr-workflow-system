@@ -22,12 +22,3 @@ def init_db():
     import vr_workflow.models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
-
-
-@contextmanager
-def session_scope():
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.close()
